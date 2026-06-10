@@ -725,6 +725,28 @@ select:focus { border-color: var(--gold); outline: none; }
 }
 .export-panel h4 { font-size: 11px; color: var(--text-mid); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
 .export-panel p { font-size: 10px; color: var(--text-dim); line-height: 1.6; margin-bottom: 10px; }
+
+/* STAR RATING */
+.star-rating { display: flex; align-items: center; gap: 3px; padding: 4px 0; }
+.star {
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--border2);
+  transition: color 0.1s;
+  line-height: 1;
+  user-select: none;
+}
+.star.filled { color: var(--gold); }
+.star-clear {
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-dim);
+  margin-left: 8px;
+  padding: 2px 5px;
+  transition: color 0.1s;
+}
+.star-clear:hover { color: var(--red); }
+.card-stars { font-size: 12px; color: var(--gold); letter-spacing: 1px; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -763,6 +785,7 @@ select:focus { border-color: var(--gold); outline: none; }
         <label>Display</label>
         <select id="filterDisplay" onchange="loadPieces()">
           <option value="">All</option>
+          <option value="__null__">Unknown</option>
           <option value="true">On Display</option>
           <option value="false">In Storage</option>
         </select>
@@ -786,6 +809,18 @@ select:focus { border-color: var(--gold); outline: none; }
       <div class="filter-group">
         <label>Condition</label>
         <select id="filterCondition" onchange="loadPieces()"><option value="">All</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Ranking</label>
+        <select id="filterRanking" onchange="loadPieces()">
+          <option value="">All</option>
+          <option value="__null__">Unknown</option>
+          <option value="5">★★★★★</option>
+          <option value="4">★★★★☆</option>
+          <option value="3">★★★☆☆</option>
+          <option value="2">★★☆☆☆</option>
+          <option value="1">★☆☆☆☆</option>
+        </select>
       </div>
       <div class="filter-group">
         <label>Photos</label>
@@ -846,19 +881,20 @@ select:focus { border-color: var(--gold); outline: none; }
     <div id="viewExport" class="content-area" style="display:none">
       <h2 style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold);margin-bottom:16px">Export / Import</h2>
       <div class="export-panel">
-        <h4>Export to Claude</h4>
-        <p>Download your collection as JSON. Paste it into a Claude conversation to get recommendations, generate descriptions, or analyze your collection. Claude can return updated JSON you can import back.</p>
+        <h4>Export JSON</h4>
+        <p>Download your collection as JSON, respecting current sidebar filters. Paste it into a Claude conversation to get recommendations, generate descriptions, or analyze your collection. Claude can return updated JSON you can import back.</p>
         <button class="btn btn-gold" onclick="exportJSON()">↓ Download JSON</button>
       </div>
       <div class="export-panel">
-        <h4>Import from JSON</h4>
-        <p>Import a JSON file — either a previous export from this app, or a Claude-generated JSON following the same format. New pieces will be added; existing pieces (matched by title) will be skipped to avoid duplicates.</p>
-        <button class="btn" onclick="document.getElementById('importFile').click()">↑ Import JSON</button>
-        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+        <h4>Export HTML Catalog</h4>
+        <p>Download a self-contained HTML catalog with all fields and embedded photos, respecting current sidebar filters. Open in any browser or print for a physical catalog.</p>
+        <button class="btn btn-gold" onclick="exportHTML()">↓ Download HTML Catalog</button>
       </div>
       <div class="export-panel">
-        <h4>Legacy HTML Import</h4>
-        <p>If you have data from the original static HTML catalog, export its JSON and import it here using the Import JSON button above. The importer handles the legacy format automatically.</p>
+        <h4>Import from JSON</h4>
+        <p>Import a JSON file — either a previous export from this app, or a Claude-generated JSON following the same format. Pieces with matching IDs will be updated; pieces without IDs or with new IDs will be added. Missing fields default to blank. After import you will be taken to the collection.</p>
+        <button class="btn" onclick="document.getElementById('importFile').click()">↑ Import JSON</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
       </div>
     </div>
 
@@ -946,6 +982,17 @@ select:focus { border-color: var(--gold); outline: none; }
           <div class="field form-full">
             <label>Description</label>
             <textarea id="f_description" placeholder="Description of the piece…"></textarea>
+          </div>
+          <div class="field form-full">
+            <label>Ranking</label>
+            <div class="star-rating" id="f_ranking">
+              <span class="star" data-val="1">★</span>
+              <span class="star" data-val="2">★</span>
+              <span class="star" data-val="3">★</span>
+              <span class="star" data-val="4">★</span>
+              <span class="star" data-val="5">★</span>
+              <span class="star-clear" onclick="setRanking(null)" title="Clear rating">✕ clear</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1056,12 +1103,14 @@ let viewingId = null;
 let viewMode = 'grid';
 let currentView = 'collection';
 let debounceTimer;
+let editingRanking = null;
 
 // ── INIT ──
 async function init() {
   await loadLookups();
   populateFilterSelects();
   populateFormSelects();
+  initStarWidget();
   await loadPieces();
   updateStats();
 }
@@ -1099,6 +1148,7 @@ function populateFilterSelects() {
     const el = document.getElementById(elId);
     const vals = (lookups[type] || []).filter(v => v.active);
     el.innerHTML = '<option value="">All</option>' +
+      '<option value="__null__">Unknown</option>' +
       vals.map(v => `<option value="${esc(v.value)}">${esc(v.value)}</option>`).join('');
   }
 }
@@ -1124,7 +1174,7 @@ function populateFormSelects() {
 }
 
 // ── PIECES ──
-async function loadPieces() {
+function getFilterParams() {
   const params = new URLSearchParams();
   const search = document.getElementById('searchInput')?.value;
   if (search) params.set('search', search);
@@ -1139,18 +1189,18 @@ async function loadPieces() {
   const cond = document.getElementById('filterCondition')?.value;
   if (cond) params.set('condition', cond);
   const disp = document.getElementById('filterDisplay')?.value;
-  if (disp !== '') params.set('on_display', disp);
+  if (disp !== undefined && disp !== '') params.set('on_display', disp);
+  const ranking = document.getElementById('filterRanking')?.value;
+  if (ranking) params.set('ranking', ranking);
+  const photos = document.getElementById('filterPhotos')?.value;
+  if (photos) params.set('has_photos', photos);
+  return params;
+}
 
+async function loadPieces() {
   try {
-    const res = await fetch('/api/pieces?' + params);
-    let fetched = await res.json();
-
-    // Photo filter — client-side since primary_photo is already attached
-    const photoFilter = document.getElementById('filterPhotos')?.value;
-    if (photoFilter === 'with') fetched = fetched.filter(p => p.primary_photo);
-    if (photoFilter === 'without') fetched = fetched.filter(p => !p.primary_photo);
-
-    pieces = fetched;
+    const res = await fetch('/api/pieces?' + getFilterParams());
+    pieces = await res.json();
     renderGrid();
     updateStats();
   } catch(e) { console.error(e); }
@@ -1201,12 +1251,16 @@ function cardHTML(p) {
   if (p.location && isActive('location', p.location)) tags.push(`<span class="tag tag-purple">${esc(p.location)}</span>`);
 
   const stale = isRecommendationStale(p);
+  const rankingEl = p.ranking
+    ? `<div class="card-stars">${'★'.repeat(p.ranking)}<span style="opacity:0.35">${'☆'.repeat(5-p.ranking)}</span></div>`
+    : '';
 
   return `<div class="card" onclick="openViewModal(${p.id})">
     <div class="card-thumb">${thumbEl}${badge}</div>
     <div class="card-body">
       <div class="card-title">${esc(p.title)}</div>
       ${p.artist ? `<div class="card-artist">${esc(p.artist)}</div>` : ''}
+      ${rankingEl}
       <div class="card-tags">${tags.join('')}</div>
       ${stale ? `<div class="stale-warning">⚠ Recommendation stale</div>` : ''}
     </div>
@@ -1259,6 +1313,10 @@ async function openViewModal(id) {
       ${p.recommendation_notes ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">${esc(p.recommendation_notes)}</div>` : ''}
     </div>` : '';
 
+  const rankingViewHTML = p.ranking
+    ? `<div class="view-field"><div class="view-label">Ranking</div><div class="view-value" style="color:var(--gold)">${'★'.repeat(p.ranking)}<span style="color:var(--border2)">${'☆'.repeat(5-p.ranking)}</span></div></div>`
+    : '';
+
   document.getElementById('viewBody').innerHTML = `
     ${photosHTML}
     <div class="view-grid">
@@ -1269,7 +1327,7 @@ async function openViewModal(id) {
       ${vf('Location', isActive('location', p.location) ? p.location : null)} ${vf('Display', p.on_display ? 'On Display' : 'In Storage')}
       ${vf('Since', formatDate(p.displaying_since))} ${vf('Last Displayed', formatDate(p.last_display_date))}
       ${vf('Signed', p.is_signed ? 'Yes' : 'No')} ${vf('Framed', p.is_framed ? 'Yes' : 'No')}
-      ${vf('Year Acquired', p.year_acquired)}
+      ${vf('Year Acquired', p.year_acquired)} ${rankingViewHTML}
     </div>
     ${p.frame_notes ? `<div class="view-notes"><strong style="color:var(--text-dim);font-size:10px">FRAME NOTES</strong><br>${esc(p.frame_notes)}</div>` : ''}
     ${p.description ? `<div class="view-notes"><strong style="color:var(--text-dim);font-size:10px">DESCRIPTION</strong><br>${esc(p.description)}</div>` : ''}
@@ -1343,6 +1401,8 @@ function clearForm() {
   document.getElementById('f_signed').checked = false;
   document.getElementById('f_hangable').checked = true;
   document.getElementById('f_framed').checked = false;
+  editingRanking = null;
+  renderStars();
 }
 
 function fillForm(p) {
@@ -1371,6 +1431,8 @@ function fillForm(p) {
   document.getElementById('f_signed').checked = !!p.is_signed;
   document.getElementById('f_hangable').checked = p.is_hangable !== 0;
   document.getElementById('f_framed').checked = !!p.is_framed;
+  editingRanking = p.ranking || null;
+  renderStars();
 }
 
 function closeEditModal() {
@@ -1410,7 +1472,8 @@ async function savePiece() {
     curation_recommendation: document.getElementById('f_recommendation').value || null,
     recommendation_date: document.getElementById('f_rec_date').value || null,
     recommendation_notes: document.getElementById('f_rec_notes').value.trim() || null,
-    notes: document.getElementById('f_notes').value.trim() || null
+    notes: document.getElementById('f_notes').value.trim() || null,
+    ranking: editingRanking || null
   };
 
   try {
@@ -1613,8 +1676,12 @@ async function reactivateLookup(id) {
 }
 
 // ── EXPORT / IMPORT ──
-async function exportJSON() {
-  window.location.href = '/api/pieces/export/json';
+function exportJSON() {
+  window.location.href = '/api/pieces/export/json?' + getFilterParams();
+}
+
+function exportHTML() {
+  window.location.href = '/api/pieces/export/html?' + getFilterParams();
 }
 
 async function importJSON(event) {
@@ -1624,16 +1691,17 @@ async function importJSON(event) {
   try {
     let data = JSON.parse(text);
     // Handle both export format { pieces: [] } and legacy array format
-    const pieces = data.pieces || (Array.isArray(data) ? data : null);
-    if (!pieces) { showToast('Invalid JSON format'); return; }
+    const piecesData = data.pieces || (Array.isArray(data) ? data : null);
+    if (!piecesData) { showToast('Invalid JSON format'); return; }
     const res = await fetch('/api/pieces/import/json', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pieces })
+      body: JSON.stringify({ pieces: piecesData })
     });
     const result = await res.json();
     await loadPieces();
     showToast(`Imported: ${result.inserted} added, ${result.updated} updated`);
+    showView('collection');
   } catch(e) { showToast('Error reading file'); }
   event.target.value = '';
 }
@@ -1641,7 +1709,7 @@ async function importJSON(event) {
 // ── FILTERS ──
 function clearFilters() {
   document.getElementById('searchInput').value = '';
-  ['filterTheme','filterCategory','filterOwner','filterLocation','filterCondition','filterDisplay','filterPhotos'].forEach(id => {
+  ['filterTheme','filterCategory','filterOwner','filterLocation','filterCondition','filterDisplay','filterRanking','filterPhotos'].forEach(id => {
     document.getElementById(id).value = '';
   });
   loadPieces();
@@ -1665,6 +1733,40 @@ function formatDate(str) {
   try {
     return new Date(str).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
   } catch(e) { return str; }
+}
+
+// ── STAR RATING ──
+function initStarWidget() {
+  const container = document.getElementById('f_ranking');
+  if (!container) return;
+  container.querySelectorAll('.star').forEach(s => {
+    const val = parseInt(s.dataset.val);
+    s.onmouseenter = () => highlightStars(val);
+    s.onmouseleave = () => renderStars();
+    s.onclick = () => setRanking(val === editingRanking ? null : val);
+  });
+}
+
+function highlightStars(upTo) {
+  const container = document.getElementById('f_ranking');
+  if (!container) return;
+  container.querySelectorAll('.star').forEach(s => {
+    s.classList.toggle('filled', parseInt(s.dataset.val) <= upTo);
+  });
+}
+
+function renderStars() {
+  const container = document.getElementById('f_ranking');
+  if (!container) return;
+  const val = editingRanking || 0;
+  container.querySelectorAll('.star').forEach(s => {
+    s.classList.toggle('filled', parseInt(s.dataset.val) <= val);
+  });
+}
+
+function setRanking(val) {
+  editingRanking = val;
+  renderStars();
 }
 
 // ── TOAST ──

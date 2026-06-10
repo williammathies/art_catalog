@@ -49,6 +49,24 @@ cd ~/apps/home-apps/art-catalog
 bash deploy.sh
 ```
 
+## Features
+
+### Piece Fields
+All pieces support: title, artist, year acquired, collection/theme, category, medium, owner, condition, description, dimensions, estimated value, display status, location, framed/signed/hangable flags, frame notes, curation recommendation, notes, and **ranking (1–5 stars)**.
+
+### Filters
+The sidebar supports filtering by display status, collection, category, owner, location, condition, ranking, and photos. Every filter (except photos) includes an **Unknown** option to find pieces with no value set for that field. All filters are respected by both JSON and HTML catalog exports.
+
+### Export
+- **Export JSON** — downloads filtered collection as JSON; suitable for Claude analysis and re-import.
+- **Export HTML Catalog** — downloads a self-contained HTML document with all fields and embedded thumbnail photos. Works offline and prints cleanly.
+
+### Import JSON
+- Pieces with a matching `id` are updated (text fields only; photos are never overwritten).
+- Pieces with no `id` or an unknown `id` are inserted with an auto-assigned ID.
+- Missing fields default to blank — partial JSON will not fail the import.
+- After import the app navigates to the Collection view automatically.
+
 ## Importing Legacy Data
 1. Open the old static HTML file in a browser
 2. Use its Export JSON button

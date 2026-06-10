@@ -148,4 +148,7 @@ function migrate() {
 
 migrate();
 
+// Add columns introduced after initial release
+try { db.exec('ALTER TABLE pieces ADD COLUMN ranking INTEGER'); } catch(e) {}
+
 module.exports = db;
