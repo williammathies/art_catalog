@@ -88,12 +88,21 @@ describe('GET /api/pieces', () => {
     expect(res.body[0].title).toBe('Top');
   });
 
-  it('collection_theme=__null__ returns only pieces with no theme set', async () => {
+  it('collection_theme=__null__ returns pieces with no theme, empty string, or inactive/orphan theme', async () => {
+    // 'Gaming' is a registered active lookup — should NOT appear under Unknown
+    const { lastInsertRowid: lvId } = db.prepare(
+      "INSERT INTO lookup_values (type, value, active) VALUES ('collection', 'Gaming', 1)"
+    ).run();
+
     await request(app).post('/api/pieces').send({ title: 'No Theme' });
     await request(app).post('/api/pieces').send({ title: 'Has Theme', collection_theme: 'Gaming' });
+    await request(app).post('/api/pieces').send({ title: 'Orphan Theme', collection_theme: 'OldValue' });
+
     const res = await request(app).get('/api/pieces?collection_theme=__null__');
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].title).toBe('No Theme');
+    const titles = res.body.map(p => p.title).sort();
+    expect(titles).toEqual(['No Theme', 'Orphan Theme']);
+
+    db.prepare('DELETE FROM lookup_values WHERE id = ?').run(lvId);
   });
 
   it('ranking=__null__ returns only unranked pieces', async () => {

@@ -29,7 +29,8 @@ function logChanges(piece_id, piece_title, oldObj, newObj) {
 }
 
 // Helper: build WHERE clause + params from filter query params
-// Supports __null__ sentinel for any nullable field to filter IS NULL rows.
+// __null__ sentinel matches: NULL, empty string, or a value not in any active lookup option
+// (covers pieces with no value set, legacy empty strings, and soft-deleted lookup values).
 function buildFilters(params) {
   let where = 'WHERE 1=1';
   const vals = [];
@@ -41,15 +42,20 @@ function buildFilters(params) {
     vals.push(s, s, s, s);
   }
 
-  for (const [field, val] of [
-    ['collection_theme', collection_theme],
-    ['category', category],
-    ['owner', owner],
-    ['location', location],
-    ['condition', condition],
+  for (const [field, val, lookupType] of [
+    ['collection_theme', collection_theme, 'collection'],
+    ['category', category, 'category'],
+    ['owner', owner, 'owner'],
+    ['location', location, 'location'],
+    ['condition', condition, 'condition'],
   ]) {
-    if (val === '__null__') { where += ` AND ${field} IS NULL`; }
-    else if (val) { where += ` AND ${field} = ?`; vals.push(val); }
+    if (val === '__null__') {
+      where += ` AND (${field} IS NULL OR ${field} = '' OR ${field} NOT IN (SELECT value FROM lookup_values WHERE type = ? AND active = 1))`;
+      vals.push(lookupType);
+    } else if (val) {
+      where += ` AND ${field} = ?`;
+      vals.push(val);
+    }
   }
 
   if (on_display === '__null__') {
