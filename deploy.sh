@@ -1,18 +1,11 @@
-#!/bin/bash
-# deploy.sh - Run this on the OptiPlex after pushing to GitHub
-set -e
+#!/usr/bin/env bash
+# Runs on the OptiPlex self-hosted runner after tests pass on main.
+set -euo pipefail
 
 APP_DIR="/home/williammathies/apps/art-catalog"
 cd "$APP_DIR"
 
-echo "📦 Pulling latest from GitHub..."
-git pull origin main
-
-echo "📚 Installing dependencies..."
-npm install --production
-
-echo "🔄 Restarting art-catalog..."
+git pull --rebase origin main
+npm ci --omit=dev
 pm2 restart art-catalog || pm2 start ecosystem.config.js
-
-echo "✅ Deployed successfully"
-pm2 status
+pm2 save

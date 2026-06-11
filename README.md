@@ -43,6 +43,15 @@ pm2 startup  # Follow the printed command to auto-start on reboot
 ### 5. Access the app
 Open browser to: `http://192.168.1.225:3001`
 
+## Tests
+
+```bash
+npm test               # run all tests
+npm run test:coverage  # run with coverage report (thresholds enforced)
+```
+
+Tests use Jest + supertest against a real SQLite test database (`data/test-catalog.db`) that is created fresh each run and deleted on teardown. The CI pipeline runs `npm run test:coverage` on every push and pull request to `main`.
+
 ## Deploy Updates
 ```bash
 cd ~/apps/home-apps/art-catalog
